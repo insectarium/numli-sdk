@@ -83,7 +83,7 @@ Les erreurs partent vers l'événement `error`, ou vers la console si vous ne l'
 
 ## Sans Node.js
 
-Le flux est une simple connexion [Server-Sent Events](https://developer.mozilla.org/fr/docs/Web/API/Server-sent_events). Sur la connexion, `number.create` et `number.delete` portent une liste, car des numéros arrivent et partent par groupes :
+Le flux est une simple connexion [Server-Sent Events](https://developer.mozilla.org/fr/docs/Web/API/Server-sent_events). `number.sync` porte toute la liste, `{ "numbers": [...] }`. Chaque `number.create` porte un numéro, `{ "number", "expireAt" }`, et chaque `number.delete` aussi, `{ "number" }` :
 
 ```bash
 curl -N https://numli.fr/api/number/stream -H "Authorization: Bearer sk_…"

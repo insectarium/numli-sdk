@@ -220,11 +220,11 @@ export class Numli extends EventEmitter {
         if (!data) return;
 
         try {
-            const { numbers } = JSON.parse(data);
+            const payload = JSON.parse(data);
 
-            if (event === 'number.sync') this.#applySync(numbers);
-            if (event === 'number.create') this.#applyCreate(numbers);
-            if (event === 'number.delete') this.#applyDelete(numbers);
+            if (event === 'number.sync') this.#applySync(payload.numbers);
+            if (event === 'number.create') this.#applyCreate(payload);
+            if (event === 'number.delete') this.#applyDelete(payload);
         } catch (error) {
             this.#report(error);
         }
@@ -240,22 +240,18 @@ export class Numli extends EventEmitter {
         this.#emit('number.sync', current);
     }
 
-    // Un appel par numéro. Une reprise peut renvoyer un événement déjà reçu, ou un numéro expiré entre-temps
-    #applyCreate(numbers) {
+    // Une reprise peut renvoyer un événement déjà reçu, ou un numéro expiré entre-temps
+    #applyCreate(listed) {
         this.#removeExpired();
 
-        for (const listed of numbers) {
-            if (isExpired(listed) || this.#known.has(listed.number)) continue;
+        if (isExpired(listed) || this.#known.has(listed.number)) return;
 
-            this.#known.set(listed.number, listed);
-            this.#emit('number.create', listed);
-        }
+        this.#known.set(listed.number, listed);
+        this.#emit('number.create', listed);
     }
 
-    #applyDelete(numbers) {
-        for (const number of numbers) {
-            if (this.#known.delete(number)) this.#emit('number.delete', { number });
-        }
+    #applyDelete({ number }) {
+        if (this.#known.delete(number)) this.#emit('number.delete', { number });
     }
 
     #removeExpired() {

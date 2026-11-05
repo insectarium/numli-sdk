@@ -64,7 +64,12 @@ const create = (options = {}) => {
 
 const open = (res) => res.writeHead(200, { 'Content-Type': 'text/event-stream' }).flushHeaders();
 
-const frame = (event, numbers, id) => `${id ? `id: ${id}\n` : ''}event: ${event}\ndata: ${JSON.stringify({ numbers })}\n\n`;
+const frame = (event, payload, id) => `${id ? `id: ${id}\n` : ''}event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
+
+// Comme numli.fr : toute la liste dans number.sync, un événement par numéro ensuite
+const sync = (numbers, id) => frame('number.sync', { numbers }, id);
+const created = (listedNumber, id) => frame('number.create', listedNumber, id);
+const deleted = (number, id) => frame('number.delete', { number }, id);
 
 const listed = (number, expireAt = FUTURE) => ({ number, expireAt });
 
@@ -114,7 +119,7 @@ test('le premier écouteur ouvre le flux, avec la clé, une seule fois', async (
 test('la liste complète n’arrive que par number.sync : aucun appel par numéro à la connexion', async () => {
     onStream = (res) => {
         open(res);
-        res.write(frame('number.sync', [listed('0612345678'), listed('0698765432')], '1-0'));
+        res.write(sync([listed('0612345678'), listed('0698765432')], '1-0'));
     };
 
     const emitted = record(create());
@@ -129,9 +134,9 @@ test('la liste complète n’arrive que par number.sync : aucun appel par numér
 test('le direct : un nouveau numéro entre dans la liste, un numéro retiré en sort', async () => {
     onStream = (res) => {
         open(res);
-        res.write(frame('number.sync', [listed('0612345678')], '1-0'));
-        res.write(frame('number.create', [listed('0698765432')], '2-0'));
-        res.write(frame('number.delete', ['0612345678'], '3-0'));
+        res.write(sync([listed('0612345678')], '1-0'));
+        res.write(created(listed('0698765432'), '2-0'));
+        res.write(deleted('0612345678', '3-0'));
     };
 
     const emitted = record(create(), ['number.create', 'number.delete']);
@@ -144,32 +149,15 @@ test('le direct : un nouveau numéro entre dans la liste, un numéro retiré en 
     assert.deepEqual(numli.numbers, [listed('0698765432')]);
 });
 
-test('un événement à plusieurs numéros fait un appel par numéro', async () => {
-    onStream = (res) => {
-        open(res);
-        res.write(frame('number.create', [listed('0612345678'), listed('0698765432')], '1-0'));
-        res.write(frame('number.delete', ['0612345678', '0698765432'], '2-0'));
-    };
-
-    const emitted = record(create(), ['number.create', 'number.delete']);
-    await waitUntil(() => emitted.length === 4);
-
-    assert.deepEqual(emitted, [
-        ['number.create', listed('0612345678')],
-        ['number.create', listed('0698765432')],
-        ['number.delete', { number: '0612345678' }],
-        ['number.delete', { number: '0698765432' }],
-    ]);
-});
-
 test('un événement reçu deux fois n’est émis qu’une fois', async () => {
     onStream = (res) => {
         open(res);
-        res.write(frame('number.create', [listed('0612345678')], '1-0'));
-        res.write(frame('number.create', [listed('0612345678'), listed('0698765432')], '2-0'));
-        res.write(frame('number.delete', ['0655555555'], '3-0'));
-        res.write(frame('number.delete', ['0698765432'], '4-0'));
-        res.write(frame('number.delete', ['0698765432'], '5-0'));
+        res.write(created(listed('0612345678'), '1-0'));
+        res.write(created(listed('0612345678'), '2-0'));
+        res.write(created(listed('0698765432'), '2-1'));
+        res.write(deleted('0655555555', '3-0'));
+        res.write(deleted('0698765432', '4-0'));
+        res.write(deleted('0698765432', '5-0'));
     };
 
     const emitted = record(create(), ['number.create', 'number.delete']);
@@ -186,11 +174,11 @@ test('un événement reçu deux fois n’est émis qu’une fois', async () => {
 test('un message coupé en deux morceaux, ou en fins de ligne CRLF, est lu en entier', async () => {
     onStream = async (res) => {
         open(res);
-        const text = frame('number.create', [listed('0612345678')], '1-0');
+        const text = created(listed('0612345678'), '1-0');
         res.write(text.slice(0, 15));
         await sleep(10);
         res.write(text.slice(15));
-        res.write(frame('number.create', [listed('0698765432')], '2-0').replaceAll('\n', '\r\n'));
+        res.write(created(listed('0698765432'), '2-0').replaceAll('\n', '\r\n'));
     };
 
     const emitted = record(create(), ['number.create']);
@@ -202,7 +190,7 @@ test('un message coupé en deux morceaux, ou en fins de ligne CRLF, est lu en en
 test('reconnexion : le dernier identifiant est renvoyé', async () => {
     onStream = (res, _request, rank) => {
         open(res);
-        if (rank === 1) res.end(frame('number.create', [listed('0612345678')], '7-3'));
+        if (rank === 1) res.end(created(listed('0612345678'), '7-3'));
     };
 
     create().on('number.create', () => {});
@@ -214,8 +202,8 @@ test('reconnexion : le dernier identifiant est renvoyé', async () => {
 test('après une longue coupure, number.sync remplace toute la liste, sans appel par numéro', async () => {
     onStream = (res, _request, rank) => {
         open(res);
-        if (rank === 1) res.end(frame('number.sync', [listed('0612345678'), listed('0698765432')], '1-0'));
-        else res.write(frame('number.sync', [listed('0698765432'), listed('0655555555')], '2-0'));
+        if (rank === 1) res.end(sync([listed('0612345678'), listed('0698765432')], '1-0'));
+        else res.write(sync([listed('0698765432'), listed('0655555555')], '2-0'));
     };
 
     const emitted = record(create());
@@ -232,9 +220,9 @@ test('un numéro expiré sort de numbers, sans number.delete : l’abonné se fi
     onStream = (res, _request, rank) => {
         open(res);
         if (rank === 1) {
-            res.end(frame('number.sync', [listed('0612345678', soon), listed('0698765432')], '1-0'));
+            res.end(sync([listed('0612345678', soon), listed('0698765432')], '1-0'));
         } else {
-            setTimeout(() => res.write(frame('number.sync', [listed('0698765432')], '2-0')), 80);
+            setTimeout(() => res.write(sync([listed('0698765432')], '2-0')), 80);
         }
     };
 
@@ -249,7 +237,8 @@ test('un numéro expiré sort de numbers, sans number.delete : l’abonné se fi
 test('un numéro déjà expiré à l’arrivée n’est pas annoncé', async () => {
     onStream = (res) => {
         open(res);
-        res.write(frame('number.create', [listed('0612345678', PAST), listed('0698765432')], '1-0'));
+        res.write(created(listed('0612345678', PAST), '1-0'));
+        res.write(created(listed('0698765432'), '1-1'));
     };
 
     const emitted = record(create(), ['number.create']);
@@ -295,7 +284,7 @@ test('une erreur du serveur est réessayée', async () => {
     onStream = (res, _request, rank) => {
         if (rank === 1) return res.writeHead(502).end();
         open(res);
-        res.write(frame('number.create', [listed('0612345678')], '1-0'));
+        res.write(created(listed('0612345678'), '1-0'));
     };
 
     const client = create();
@@ -342,10 +331,11 @@ test('les signes de vie gardent la connexion et ne produisent aucun événement'
     assert.deepEqual(emitted, []);
 });
 
-test('un écouteur qui lève une erreur ne coupe pas le flux, ni les numéros suivants du même événement', async () => {
+test('un écouteur qui lève une erreur ne coupe pas le flux, ni les numéros suivants', async () => {
     onStream = (res) => {
         open(res);
-        res.write(frame('number.create', [listed('0612345678'), listed('0698765432')], '1-0'));
+        res.write(created(listed('0612345678'), '1-0'));
+        res.write(created(listed('0698765432'), '1-1'));
     };
 
     const errors = [];
@@ -366,8 +356,8 @@ test('un écouteur qui lève une erreur ne coupe pas le flux, ni les numéros su
 test('un écouteur async qui échoue ne coupe pas le flux et ne fait pas tomber le processus', async () => {
     onStream = (res) => {
         open(res);
-        res.write(frame('number.create', [listed('0612345678')], '1-0'));
-        res.write(frame('number.create', [listed('0698765432')], '2-0'));
+        res.write(created(listed('0612345678'), '1-0'));
+        res.write(created(listed('0698765432'), '2-0'));
     };
 
     const errors = [];
