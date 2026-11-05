@@ -1,0 +1,32 @@
+{
+    "name": "@numli/sdk",
+    "version": "0.1.0",
+    "description": "Recevez les numéros de mobile disponibles sur numli.fr en direct, et réservez-les.",
+    "type": "module",
+    "exports": {
+        ".": {
+            "types": "./src/index.d.ts",
+            "default": "./src/index.js"
+        }
+    },
+    "types": "./src/index.d.ts",
+    "files": [
+        "src/index.js",
+        "src/index.d.ts"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "scripts": {
+        "test": "node --test"
+    },
+    "keywords": [
+        "numli",
+        "numeros",
+        "sse"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "license": "UNLICENSED"
+}
