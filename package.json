@@ -25,6 +25,10 @@
         "numeros",
         "sse"
     ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/insectarium/numli-sdk.git"
+    },
     "publishConfig": {
         "access": "public"
     },

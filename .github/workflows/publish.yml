@@ -1,0 +1,37 @@
+# Publie le package sur npm quand un tag v* arrive, sans jeton : npm reconnaît ce workflow (trusted publishing).
+#
+# Pour sortir une version :
+#   npm version patch        (ou minor, ou major)
+#   git push --follow-tags
+#
+# Réglage sur npmjs.com, dans Settings du package : insectarium, numli-sdk, publish.yml, avec npm publish autorisé.
+name: Publication npm
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Node 24 pour npm 11.5.1 ou plus, exigé par le trusted publishing. Pas de cache : rien à installer
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Le tag correspond à la version du package
+        run: test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
+
+      - run: npm test
+
+      - run: npm publish
