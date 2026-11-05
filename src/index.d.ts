@@ -8,10 +8,26 @@ export interface ListedNumber {
 }
 
 export interface Claim {
+    /** L'identifiant de la demande, à passer à getClaim */
+    id: string;
     /** Le lien où envoyer votre client, valable jusqu'à expireAt */
     accessUrl: string;
     operator: string;
     expireAt: string;
+}
+
+export interface ClaimDetails extends Claim {
+    number: string;
+    reference: string | null;
+    /**
+     * requested : lien pas encore ouvert.
+     * validated : lien ouvert à temps, sans garantie que le numéro ait été acheté.
+     * expired : lien ouvert trop tard, ou jamais ouvert à temps.
+     */
+    status: 'requested' | 'validated' | 'expired';
+    createdAt: string;
+    /** La première ouverture du lien, null s'il n'a jamais été ouvert */
+    openedAt: string | null;
 }
 
 export interface NumliOptions {
@@ -45,6 +61,9 @@ export class Numli extends EventEmitter {
 
     /** Réserve un numéro. Lève NumliError en cas de refus */
     claim(number: string, options?: { reference?: string }): Promise<Claim>;
+
+    /** Lit une demande de votre compte, sans rien y changer. Lève NumliError en cas de refus */
+    getClaim(id: string): Promise<ClaimDetails>;
 
     /** Toute la liste, à la connexion ou après une longue coupure : remplacez la vôtre */
     on(event: 'number.sync', listener: (numbers: ListedNumber[]) => void | Promise<void>): this;

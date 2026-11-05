@@ -67,6 +67,24 @@ try {
 
 `claim` n'ouvre aucun flux : un code qui ne fait que réserver n'a pas besoin de rester connecté.
 
+## Lire une demande
+
+`claim` renvoie aussi l'`id` de la demande. Si votre client ouvre le lien d'accès après `expireAt`, il arrive sur votre URL d'erreur, qui reçoit ce même identifiant : `?reference=commande-1042&claimId=…` (`reference` seulement si vous en avez envoyé une). Lisez alors la demande depuis votre serveur pour lui afficher le bon message :
+
+```js
+const { status } = await numli.getClaim(claimId);
+```
+
+| `status`    | Signification                                                                           |
+| ----------- | --------------------------------------------------------------------------------------- |
+| `requested` | Le lien n'a pas encore été ouvert                                                       |
+| `validated` | Le lien a été ouvert à temps, sans garantie que le numéro ait été acheté                |
+| `expired`   | Le lien a été ouvert trop tard, ou jamais ouvert à temps                                |
+
+Sur votre URL d'erreur, `validated` veut donc dire que votre client a déjà utilisé son lien. Avant `expireAt`, le lien reste utilisable.
+
+`getClaim` ne change rien à la demande. N'appelez jamais `accessUrl` pour vérifier une demande : sa première ouverture la valide.
+
 ## Après une coupure
 
 Le package se reconnecte tout seul. Après une courte coupure, il reçoit ce qu'il a manqué, en `number.create` et `number.delete`. Après une longue coupure, il reçoit `number.sync`.

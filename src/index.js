@@ -106,12 +106,24 @@ export class Numli extends EventEmitter {
         this.#closing.abort();
     }
 
-    // Réserve un numéro. Renvoie { accessUrl, operator, expireAt }, lève NumliError en cas de refus
+    // Réserve un numéro. Renvoie { id, accessUrl, operator, expireAt }, lève NumliError en cas de refus
     async claim(number, { reference } = {}) {
         const response = await fetch(`${this.#baseUrl}/api/claim`, {
             method: 'POST',
             headers: { authorization: `Bearer ${this.#apiKey}`, 'content-type': 'application/json' },
             body: JSON.stringify({ number, ...(reference && { reference }) }),
+        });
+
+        if (!response.ok) throw await errorFrom(response);
+
+        return await response.json();
+    }
+
+    // Lit une demande sans rien y changer, lève NumliError en cas de refus. L'id peut venir de l'URL d'erreur, donc du navigateur
+    // du client final : encodé, il ne peut pas viser un autre chemin de l'API
+    async getClaim(id) {
+        const response = await fetch(`${this.#baseUrl}/api/claim/${encodeURIComponent(id)}/details`, {
+            headers: { authorization: `Bearer ${this.#apiKey}` },
         });
 
         if (!response.ok) throw await errorFrom(response);

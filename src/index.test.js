@@ -24,7 +24,7 @@ before(async () => {
             const request = { method: req.method, url: req.url, headers: req.headers, body };
             requests.push(request);
 
-            if (req.url === '/api/claim') return onClaim(res, request);
+            if (req.url.startsWith('/api/claim')) return onClaim(res, request);
 
             res.on('close', () => clients.delete(res));
             clients.add(res);
@@ -430,6 +430,39 @@ test('claim : un quota atteint donne retryAt dans data', async () => {
     await assert.rejects(create().claim('0612345678'), (error) => {
         assert.equal(error.status, 429);
         assert.deepEqual(error.data, { retryAt: FUTURE });
+
+        return true;
+    });
+});
+
+test('getClaim : lit le détail de la demande avec la clé, sans ouvrir de flux', async () => {
+    const details = { id: 'c1', number: '0612345678', status: 'validated', openedAt: PAST, expireAt: PAST };
+    onClaim = (res) => res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(details));
+
+    assert.deepEqual(await create().getClaim('c1'), details);
+
+    const [request] = requests;
+    assert.equal(request.method, 'GET');
+    assert.equal(request.url, '/api/claim/c1/details');
+    assert.equal(request.headers.authorization, `Bearer ${KEY}`);
+    assert.equal(streamCalls().length, 0);
+});
+
+test('getClaim : un claimId venu de l’URL d’erreur ne peut pas viser un autre chemin', async () => {
+    onClaim = (res) => res.end('{}');
+    await create().getClaim('../../number?page=1');
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].url, '/api/claim/..%2F..%2Fnumber%3Fpage%3D1/details');
+});
+
+test('getClaim : une demande inconnue lève une erreur avec son statut', async () => {
+    onClaim = (res) => res.writeHead(404).end('{"statusMessage":"Claim not found"}');
+
+    await assert.rejects(create().getClaim('inconnue'), (error) => {
+        assert.ok(error instanceof NumliError);
+        assert.equal(error.status, 404);
+        assert.equal(error.message, 'Claim not found');
 
         return true;
     });
