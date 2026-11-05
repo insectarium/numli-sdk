@@ -1,6 +1,6 @@
 {
     "name": "@numli/sdk",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "Recevez les numéros de mobile disponibles sur numli.fr en direct, et réservez-les.",
     "type": "module",
     "exports": {
