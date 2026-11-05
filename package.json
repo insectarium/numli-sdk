@@ -25,6 +25,7 @@
         "numeros",
         "sse"
     ],
+    "homepage": "https://numli.fr",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/insectarium/numli-sdk.git"
